@@ -1,0 +1,58 @@
+# XcodeGen manifest. `make project` regenerates Sage.xcodeproj from this.
+# Keep the manifest as the source of truth — never edit the generated .xcodeproj
+# by hand or the next `make project` will clobber it.
+
+name: Sage
+options:
+  bundleIdPrefix: ltd.anti
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    DEVELOPMENT_TEAM: 8248296AJX
+    CODE_SIGN_STYLE: Automatic
+    IPHONEOS_DEPLOYMENT_TARGET: "17.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+
+packages:
+  iUX-ios:
+    path: ../iUX-ios
+
+targets:
+  Sage:
+    type: application
+    platform: iOS
+    sources:
+      - Sources/Sage
+      - Resources/Assets.xcassets
+    info:
+      path: Resources/Info.plist
+      properties:
+        CFBundleDisplayName: Sage
+        UILaunchScreen:
+          UIColorName: ""
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+    dependencies:
+      - package: iUX-ios
+        product: iUXiOS
+      - sdk: FoundationModels.framework
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ltd.anti.sage
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon

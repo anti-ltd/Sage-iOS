@@ -1,0 +1,11 @@
+import Foundation
+
+struct Message: Identifiable {
+    let id = UUID()
+    let role: Role
+    var content: String
+
+    enum Role {
+        case user, assistant
+    }
+}
