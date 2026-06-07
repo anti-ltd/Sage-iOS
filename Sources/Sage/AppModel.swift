@@ -7,52 +7,44 @@ final class AppModel {
     var messages: [Message] = []
     var isGenerating = false
 
-    private var session: LanguageModelSession?
+    // Non-nil only on older devices
+    var mlxBackend: MLXBackend?
+    private var backend: AIBackend?
 
-    var availabilityStatus: String? {
-        switch SystemLanguageModel.default.availability {
-        case .available:
-            return nil
-        case .unavailable(.deviceNotEligible):
-            return "This device doesn't support Apple Intelligence."
-        case .unavailable(.appleIntelligenceNotEnabled):
-            return "Enable Apple Intelligence in Settings → Apple Intelligence & Siri."
-        case .unavailable(.modelNotReady):
-            return "Apple Intelligence model is downloading. Try again soon."
-        case .unavailable:
-            return "Apple Intelligence unavailable."
+    init() {
+        if #available(iOS 26.0, *), SystemLanguageModel.default.isAvailable {
+            backend = FoundationModelsBackend()
+        } else {
+            let mlx = MLXBackend()
+            mlxBackend = mlx
+            backend = mlx
         }
     }
 
+    var needsMLXSetup: Bool {
+        guard let mlx = mlxBackend else { return false }
+        if case .ready = mlx.loadState { return false }
+        if case .failed = mlx.loadState { return false }
+        return true
+    }
+
     func sendMessage(_ text: String) async {
+        guard let backend else { return }
         messages.append(Message(role: .user, content: text))
         isGenerating = true
-
-        if let status = availabilityStatus {
-            messages.append(Message(role: .assistant, content: status))
-            isGenerating = false
-            return
-        }
-
-        if session == nil {
-            session = LanguageModelSession()
-        }
 
         var assistantMessage = Message(role: .assistant, content: "")
         messages.append(assistantMessage)
         let idx = messages.count - 1
 
         do {
-            let stream = session!.streamResponse(to: text)
-            for try await partial in stream {
-                messages[idx].content = partial.content
+            let stream = backend.streamResponse(prompt: text, history: messages)
+            for try await chunk in stream {
+                messages[idx].content = chunk
             }
-        } catch let error as LanguageModelSession.GenerationError {
-            messages[idx].content = error.localizedDescription
-            session = nil
         } catch {
             messages[idx].content = error.localizedDescription
-            session = nil
+            backend.resetContext()
         }
 
         isGenerating = false
@@ -60,6 +52,6 @@ final class AppModel {
 
     func clearConversation() {
         messages = []
-        session = nil
+        backend?.resetContext()
     }
 }

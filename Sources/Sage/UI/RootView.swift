@@ -5,6 +5,10 @@ struct RootView: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        ChatView()
+        if let mlx = model.mlxBackend, model.needsMLXSetup {
+            ModelSetupView(mlx: mlx)
+        } else {
+            ChatView()
+        }
     }
 }

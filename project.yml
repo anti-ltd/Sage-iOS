@@ -21,6 +21,9 @@ settings:
 packages:
   iUX-ios:
     path: ../iUX-ios
+  mlx-swift-examples:
+    url: https://github.com/ml-explore/mlx-swift-examples
+    from: "2.29.1"
 
 targets:
   Sage:
@@ -51,6 +54,10 @@ targets:
       - package: iUX-ios
         product: iUXiOS
       - sdk: FoundationModels.framework
+      - package: mlx-swift-examples
+        product: MLXLLM
+      - package: mlx-swift-examples
+        product: MLXLMCommon
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: ltd.anti.sage
