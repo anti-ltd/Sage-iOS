@@ -27,7 +27,7 @@ final class AppModel {
         do {
             let stream = session!.streamResponse(to: text)
             for try await partial in stream {
-                messages[idx].content = partial.text
+                messages[idx].content = partial.content
             }
         } catch {
             messages[idx].content = "Sorry, something went wrong."
