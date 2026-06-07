@@ -6,16 +6,34 @@ import FoundationModels
 final class AppModel {
     var messages: [Message] = []
     var isGenerating = false
-    var errorMessage: String? = nil
 
     private var session: LanguageModelSession?
+
+    var availabilityStatus: String? {
+        switch SystemLanguageModel.default.availability {
+        case .available:
+            return nil
+        case .unavailable(.deviceNotEligible):
+            return "This device doesn't support Apple Intelligence."
+        case .unavailable(.appleIntelligenceNotEnabled):
+            return "Enable Apple Intelligence in Settings → Apple Intelligence & Siri."
+        case .unavailable(.modelNotReady):
+            return "Apple Intelligence model is downloading. Try again soon."
+        case .unavailable:
+            return "Apple Intelligence unavailable."
+        }
+    }
 
     func sendMessage(_ text: String) async {
         messages.append(Message(role: .user, content: text))
         isGenerating = true
-        errorMessage = nil
 
-        // Reuse session across turns so the model has full conversation context.
+        if let status = availabilityStatus {
+            messages.append(Message(role: .assistant, content: status))
+            isGenerating = false
+            return
+        }
+
         if session == nil {
             session = LanguageModelSession()
         }
@@ -29,10 +47,11 @@ final class AppModel {
             for try await partial in stream {
                 messages[idx].content = partial.content
             }
+        } catch let error as LanguageModelSession.GenerationError {
+            messages[idx].content = error.localizedDescription
+            session = nil
         } catch {
-            messages[idx].content = "Sorry, something went wrong."
-            errorMessage = error.localizedDescription
-            // Reset session on error so the next turn starts fresh.
+            messages[idx].content = error.localizedDescription
             session = nil
         }
 
@@ -42,6 +61,5 @@ final class AppModel {
     func clearConversation() {
         messages = []
         session = nil
-        errorMessage = nil
     }
 }
