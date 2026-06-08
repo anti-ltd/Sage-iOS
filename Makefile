@@ -13,8 +13,14 @@ SIM_DEST       := "platform=iOS Simulator,name=$(SIM_NAME)"
 DEVICE         ?=
 DEVICE_NAME    ?=
 
+# Unsigned-IPA packaging (for a friend to self-sign via Sideloadly/AltStore).
+IPA_CONFIG     ?= Release
+IPA_BUNDLE_ID  ?= $(BUNDLE_ID)
+IPA_NAME       ?= $(APP_NAME)-unsigned.ipa
+IPA_DERIVED    := $(BUILD_DIR)/DerivedData-ipa
+
 .PHONY: all project icon build run sim install clean stop help test \
-        device device-install device-launch build-device
+        device device-install device-launch build-device ipa
 
 all: build
 
@@ -33,10 +39,15 @@ help:
 	@echo "  make device-install — build + install (no launch)"
 	@echo "  make device-launch  — just relaunch the installed app"
 	@echo ""
+	@echo "Distribution:"
+	@echo "  make ipa     — build an UNSIGNED .ipa for a friend to self-sign"
+	@echo ""
 	@echo "Overrides:"
 	@echo "  SIM_NAME=\"iPhone 16 Pro Max\"  pick a different simulator"
 	@echo "  DEVICE=<udid>              pick a specific iPhone by UDID"
 	@echo "  DEVICE_NAME=\"My iPhone\"     pick a specific iPhone by name"
+	@echo "  IPA_BUNDLE_ID=com.you.sage make ipa   override the bundle id"
+	@echo "  IPA_NAME=Sage.ipa make ipa            override the output filename"
 
 icon:
 	swift Tools/RenderAppIcon.swift
@@ -86,6 +97,31 @@ stop:
 
 clean:
 	rm -rf $(BUILD_DIR) $(PROJECT)
+
+# Build an unsigned device binary and wrap it in a Payload/ .ipa. The output
+# carries no signature or provisioning profile, so the recipient signs it with
+# their own Apple ID (Sideloadly, AltStore, ESign, …). Requires the Metal
+# toolchain: `xcodebuild -downloadComponent MetalToolchain` (one time).
+ipa: $(PROJECT) icon
+	@mkdir -p $(BUILD_DIR)
+	xcodebuild \
+		-project $(PROJECT) \
+		-scheme $(SCHEME) \
+		-configuration $(IPA_CONFIG) \
+		-destination 'generic/platform=iOS' \
+		-derivedDataPath $(IPA_DERIVED) \
+		PRODUCT_BUNDLE_IDENTIFIER=$(IPA_BUNDLE_ID) \
+		CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO \
+		build
+	@APP=$$(find $(IPA_DERIVED)/Build/Products -name "$(APP_NAME).app" -type d | head -n1); \
+	if [ -z "$$APP" ]; then echo "No built .app found"; exit 1; fi; \
+	rm -rf $(BUILD_DIR)/ipa-staging "$(BUILD_DIR)/$(IPA_NAME)"; \
+	mkdir -p $(BUILD_DIR)/ipa-staging/Payload; \
+	cp -R "$$APP" $(BUILD_DIR)/ipa-staging/Payload/; \
+	(cd $(BUILD_DIR)/ipa-staging && zip -qry "../$(IPA_NAME)" Payload); \
+	rm -rf $(BUILD_DIR)/ipa-staging; \
+	echo ""; \
+	echo "Unsigned IPA: $(BUILD_DIR)/$(IPA_NAME)  (bundle id: $(IPA_BUNDLE_ID))"
 
 DEVICE_UDID = $(shell \
 	if [ -n "$(DEVICE)" ]; then \

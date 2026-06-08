@@ -10,8 +10,20 @@ let size = 1024.0
 let outDir = "Resources/Assets.xcassets/AppIcon.appiconset"
 let outPath = "\(outDir)/icon-1024.png"
 
-let image = NSImage(size: NSSize(width: size, height: size))
-image.lockFocus()
+// Render into an explicit 1024×1024 pixel bitmap so the output is exactly
+// 1024px regardless of the rendering display's backing scale (a plain
+// lockFocus + tiffRepresentation would emit 2048px on a 2x display).
+guard let rep = NSBitmapImageRep(
+    bitmapDataPlanes: nil,
+    pixelsWide: Int(size), pixelsHigh: Int(size),
+    bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+    colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0) else {
+    fatalError("failed to allocate bitmap")
+}
+rep.size = NSSize(width: size, height: size)
+
+NSGraphicsContext.saveGraphicsState()
+NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
 guard let ctx = NSGraphicsContext.current?.cgContext else {
     fatalError("no graphics context")
 }
@@ -51,11 +63,9 @@ if let symbol = NSImage(systemSymbolName: "sparkles", accessibilityDescription: 
         operation: .sourceOver, fraction: 1.0)
 }
 
-image.unlockFocus()
+NSGraphicsContext.restoreGraphicsState()
 
-guard let tiff = image.tiffRepresentation,
-      let rep = NSBitmapImageRep(data: tiff),
-      let png = rep.representation(using: .png, properties: [:]) else {
+guard let png = rep.representation(using: .png, properties: [:]) else {
     fatalError("failed to encode PNG")
 }
 try! png.write(to: URL(fileURLWithPath: outPath))
