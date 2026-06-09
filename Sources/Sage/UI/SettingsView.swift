@@ -1,12 +1,10 @@
 import SwiftUI
 
 #Preview {
-    SettingsView()
-        .environment({
-            let s = AppSettings()
-            return s
-        }())
-        .environment(AppModel())
+    let model = AppModel()
+    return SettingsView()
+        .environment(model.settings)
+        .environment(model)
 }
 
 struct SettingsView: View {
@@ -18,7 +16,12 @@ struct SettingsView: View {
         NavigationStack {
             List {
                 if settings.canChooseMLX {
-                    mlxSection
+                    backendSection
+                }
+
+                // Model picker — shown whenever MLX is the active backend
+                if model.mlxBackend != nil {
+                    modelSection
                 }
 
                 aboutSection
@@ -35,7 +38,7 @@ struct SettingsView: View {
 
     // MARK: - Sections
 
-    private var mlxSection: some View {
+    private var backendSection: some View {
         Section {
             Toggle(isOn: Binding(
                 get: { settings.preferMLX },
@@ -48,8 +51,65 @@ struct SettingsView: View {
             Text("AI Backend")
         } footer: {
             Text(settings.preferMLX
-                 ? "Running Llama 3.2 1B on-device — fully private, no internet required after the initial ~700 MB download."
+                 ? "Running a local model on-device — fully private, no internet required after download."
                  : "Using Apple Intelligence (Foundation Models) — fast, on-device, and always available on iOS 26+.")
+        }
+    }
+
+    private var modelSection: some View {
+        Section {
+            ForEach(MLXModelCatalog.all) { option in
+                Button {
+                    guard option.isCompatible, !model.isGenerating else { return }
+                    model.switchMLXModel(to: option)
+                    dismiss()
+                } label: {
+                    HStack(spacing: 12) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack(spacing: 6) {
+                                Text(option.name)
+                                    .foregroundStyle(option.isCompatible ? .primary : .secondary)
+                                Text(option.tag)
+                                    .font(.caption2)
+                                    .fontWeight(.medium)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(.secondary.opacity(0.15))
+                                    .clipShape(Capsule())
+                                    .foregroundStyle(.secondary)
+                            }
+                            HStack(spacing: 4) {
+                                Text(option.sizeLabel)
+                                    .font(.caption)
+                                    .foregroundStyle(.tertiary)
+                                if !option.isCompatible {
+                                    Text("· A17+ required")
+                                        .font(.caption)
+                                        .foregroundStyle(.tertiary)
+                                }
+                            }
+                        }
+                        Spacer()
+                        if settings.selectedMLXModelID == option.id {
+                            Image(systemName: "checkmark")
+                                .fontWeight(.semibold)
+                                .foregroundStyle(Color.accentColor)
+                        } else if !option.isCompatible {
+                            Image(systemName: "lock.fill")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .disabled(!option.isCompatible || model.isGenerating)
+                .opacity(option.isCompatible ? 1 : 0.45)
+            }
+        } header: {
+            Text("Local Model")
+        } footer: {
+            Text("Switching models clears the current conversation and starts a new download if needed.")
         }
     }
 

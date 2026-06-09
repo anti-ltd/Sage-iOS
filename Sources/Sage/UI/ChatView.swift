@@ -37,45 +37,38 @@ struct ChatView: View {
     @Environment(AppModel.self) private var model
     @Environment(AppSettings.self) private var settings
     @State private var input = ""
-    @State private var scrollProxy: ScrollViewProxy? = nil
     @State private var showSettings = false
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        LazyVStack(spacing: 12) {
-                            if model.messages.isEmpty {
-                                emptyState
-                            }
-                            ForEach(model.messages) { message in
-                                MessageBubble(message: message)
-                                    .id(message.id)
-                            }
-                            if model.isGenerating {
-                                TypingIndicator()
-                                    .id("typing")
-                            }
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(spacing: 12) {
+                        if model.messages.isEmpty {
+                            emptyState
                         }
-                        .padding(.horizontal)
-                        .padding(.vertical, 12)
+                        ForEach(model.messages) { message in
+                            MessageBubble(message: message)
+                                .id(message.id)
+                        }
+                        if model.isGenerating {
+                            TypingIndicator()
+                                .id("typing")
+                        }
                     }
-                    .onChange(of: model.messages.count) {
-                        scrollToBottom(proxy: proxy)
-                    }
-                    .onChange(of: model.isGenerating) {
-                        scrollToBottom(proxy: proxy)
-                    }
-                    .onAppear {
-                        scrollProxy = proxy
-                    }
+                    .padding(.horizontal)
+                    .padding(.vertical, 12)
                 }
-
-                Divider()
-                InputBar(input: $input, onSend: send)
+                // Scroll on new messages, state changes, and every streamed token
+                .onChange(of: model.messages.count) { scrollToBottom(proxy: proxy) }
+                .onChange(of: model.isGenerating) { scrollToBottom(proxy: proxy) }
+                .onChange(of: model.messages.last?.content) { scrollToBottom(proxy: proxy) }
+                // InputBar floats over scroll content — no opaque background needed
+                .safeAreaInset(edge: .bottom) {
+                    InputBar(input: $input, onSend: send)
+                }
             }
-            .navigationTitle("Sage")
+            .navigationTitle("Apple Intelligence")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -105,7 +98,7 @@ struct ChatView: View {
             Image(systemName: "sparkles")
                 .font(.system(size: 48))
                 .foregroundStyle(.secondary)
-            Text("Ask me anything")
+            Text("On Device AI")
                 .font(.title3)
                 .foregroundStyle(.secondary)
         }
@@ -123,10 +116,12 @@ struct ChatView: View {
     }
 
     private func scrollToBottom(proxy: ScrollViewProxy) {
-        if model.isGenerating {
-            proxy.scrollTo("typing", anchor: .bottom)
-        } else if let last = model.messages.last {
-            proxy.scrollTo(last.id, anchor: .bottom)
+        withAnimation(.easeOut(duration: 0.15)) {
+            if model.isGenerating {
+                proxy.scrollTo("typing", anchor: .bottom)
+            } else if let last = model.messages.last {
+                proxy.scrollTo(last.id, anchor: .bottom)
+            }
         }
     }
 }

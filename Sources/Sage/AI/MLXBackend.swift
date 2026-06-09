@@ -12,16 +12,33 @@ final class MLXBackend: AIBackend, @unchecked Sendable {
     var loadState: LoadState = .idle
     private var modelContainer: ModelContainer?
 
-    // Llama 3.2 1B 4-bit: ~700 MB download, runs on A14+
-    private let config = LLMRegistry.llama3_2_1B_4bit
+    private let modelOption: MLXModelOption
+    private var config: ModelConfiguration { modelOption.configuration }
 
     // Application Support persists across reinstalls; Caches (the default) does not.
-    private static let hubApi = HubApi(
-        downloadBase: FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-    )
+    private static let hubApi: HubApi = {
+        let fm = FileManager.default
+        let dir = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        return HubApi(downloadBase: dir)
+    }()
 
+    init(model: MLXModelOption = MLXModelCatalog.defaultModel) {
+        self.modelOption = model
+    }
+
+    // MARK: - Setup
+
+    @MainActor
     func prepare() async {
         guard modelContainer == nil else { return }
+
+        // If a previous attempt left corrupt or incompatible files, wipe them
+        // so we get a clean download rather than hitting the same error again.
+        if case .failed = loadState {
+            clearModelCache()
+        }
+
         loadState = .downloading(0)
         do {
             let container = try await LLMModelFactory.shared.loadContainer(
@@ -38,6 +55,19 @@ final class MLXBackend: AIBackend, @unchecked Sendable {
             loadState = .failed(error.localizedDescription)
         }
     }
+
+    /// Removes this model's cached files so the next `prepare()` triggers a fresh download.
+    private func clearModelCache() {
+        // HubApi stores models at {downloadBase}/models/{org}/{repo}
+        // config.name returns the full repo ID, e.g. "mlx-community/Qwen3-1.7B-4bit"
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let modelDir = appSupport
+            .appendingPathComponent("models")
+            .appendingPathComponent(config.name)
+        try? FileManager.default.removeItem(at: modelDir)
+    }
+
+    // MARK: - Inference
 
     func streamResponse(prompt: String, history: [Message]) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in

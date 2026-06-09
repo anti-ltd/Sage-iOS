@@ -8,6 +8,16 @@ final class AppSettings {
         didSet { UserDefaults.standard.set(preferMLX, forKey: "preferMLX") }
     }
 
+    /// ID of the currently selected MLX model (matches `MLXModelOption.id`).
+    var selectedMLXModelID: String {
+        didSet { UserDefaults.standard.set(selectedMLXModelID, forKey: "selectedMLXModelID") }
+    }
+
+    /// Resolved model option from the catalog, falling back to the default if the saved ID is stale.
+    var selectedMLXModel: MLXModelOption {
+        MLXModelCatalog.all.first { $0.id == selectedMLXModelID } ?? MLXModelCatalog.defaultModel
+    }
+
     /// `true` when the device is iOS 26+ with an A17 Pro chip or newer,
     /// meaning the user can pick between Foundation Models and MLX.
     var canChooseMLX: Bool {
@@ -19,5 +29,7 @@ final class AppSettings {
 
     init() {
         preferMLX = UserDefaults.standard.bool(forKey: "preferMLX")
+        selectedMLXModelID = UserDefaults.standard.string(forKey: "selectedMLXModelID")
+            ?? MLXModelCatalog.defaultModel.id
     }
 }

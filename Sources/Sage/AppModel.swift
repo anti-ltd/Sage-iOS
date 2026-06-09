@@ -23,7 +23,7 @@ final class AppModel {
         {
             backend = FoundationModelsBackend()
         } else {
-            let mlx = MLXBackend()
+            let mlx = MLXBackend(model: settings.selectedMLXModel)
             mlxBackend = mlx
             backend = mlx
         }
@@ -31,9 +31,8 @@ final class AppModel {
 
     var needsMLXSetup: Bool {
         guard let mlx = mlxBackend else { return false }
-        if case .ready   = mlx.loadState { return false }
-        if case .failed  = mlx.loadState { return false }
-        return true
+        if case .ready = mlx.loadState { return false }
+        return true  // idle / downloading / loading / failed all stay on setup screen
     }
 
     // MARK: - Backend switching
@@ -46,7 +45,7 @@ final class AppModel {
         messages = []
 
         if preferMLX {
-            let mlx = MLXBackend()
+            let mlx = MLXBackend(model: settings.selectedMLXModel)
             mlxBackend = mlx
             backend = mlx
         } else {
@@ -57,6 +56,16 @@ final class AppModel {
         }
     }
 
+    /// Switch to a different MLX model. Creates a fresh backend (idle state) and clears history.
+    func switchMLXModel(to option: MLXModelOption) {
+        guard !isGenerating else { return }
+        settings.selectedMLXModelID = option.id
+        messages = []
+        let mlx = MLXBackend(model: option)
+        mlxBackend = mlx
+        backend = mlx
+    }
+
     // MARK: - Messaging
 
     func sendMessage(_ text: String) async {
@@ -64,7 +73,7 @@ final class AppModel {
         messages.append(Message(role: .user, content: text))
         isGenerating = true
 
-        var assistantMessage = Message(role: .assistant, content: "")
+        let assistantMessage = Message(role: .assistant, content: "")
         messages.append(assistantMessage)
         let idx = messages.count - 1
 
